@@ -21,9 +21,11 @@ add_executable(test_tun_transmit src/test_tun_transmit.cpp)
 add_executable(test_tun_receive src/test_tun_receive.cpp)
 add_executable(test_tun_receive_headers src/test_tun_receive_headers.cpp)
 add_executable(test_multiarray src/test_multiarray.cpp)
+add_executable(ip_tunnel_node src/ip_tunnel_node.cpp)
 
 # Add dependencies
 ament_target_dependencies(test_multiarray ${dependencies})
+ament_target_dependencies(ip_tunnel_node ${dependencies})
 
 # Install C++ executables
 install(TARGETS
@@ -31,6 +33,7 @@ install(TARGETS
   test_tun_receive
   test_tun_receive_headers
   test_multiarray
+  ip_tunnel_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
