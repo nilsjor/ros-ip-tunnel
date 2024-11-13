@@ -17,6 +17,7 @@ set(dependencies
 )
 
 # Add executables
+add_executable(test_tun src/test_tun.cpp)
 add_executable(test_tun_udp src/test_tun_udp.cpp)
 add_executable(test_multiarray src/test_multiarray.cpp)
 
@@ -25,6 +26,7 @@ ament_target_dependencies(test_multiarray ${dependencies})
 
 # Install executables
 install(TARGETS
+  test_tun
   test_tun_udp
   test_multiarray
   DESTINATION lib/${PROJECT_NAME}
