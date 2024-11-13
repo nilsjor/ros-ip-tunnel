@@ -10,6 +10,15 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
+# Add executables
+add_executable(tun_test src/tun_test.cpp)
+
+# Install executables
+install(TARGETS
+  tun_test
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
