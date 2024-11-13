@@ -20,19 +20,40 @@ In `ip_tunnel`, IP packets are captured and encapsulated as ROS 2 messages, sent
 
 1. Clone this repository into your ROS 2 workspace:
     ```
-    cd ~/ros2_ws/src git clone https://github.com/nilsjor/ros-ip-tunnel.git ip_tunnel
+    cd ~/ros2_ws/src && git clone https://github.com/nilsjor/ros-ip-tunnel.git ip_tunnel
     ```
-    
+
 2. Build the package:
     ```
-    cd ~/ros2_ws colcon build --packages-select ip_tunnel
+    cd ~/ros2_ws && colcon build --packages-select ip_tunnel
     ```
-    
+
 3. Source your workspace:
     ```
     source install/setup.bash
     ```
-    
+
+## Configuring TUN Interfaces
+
+On each host, create and configure a unique TUN interface with an IP address on the same subnet (e.g., `10.0.0.0/24`). This setup allows both hosts to communicate directly through the TUN interfaces.
+
+### Step-by-Step Setup
+
+1. **Host 1**:
+    ```
+    sudo ip tuntap add dev tun0 mode tun; \
+    sudo ip addr add 10.0.0.1/24 dev tun0; \
+    sudo ip link set dev tun0 up
+    ```
+
+2. **Host 2**:
+    ```
+    sudo ip tuntap add dev tun0 mode tun; \
+    sudo ip addr add 10.0.0.2/24 dev tun0; \
+    sudo ip link set dev tun0 up
+    ```
+
+This configuration assigns each host a unique IP address on the `10.0.0.0/24` subnet. The on-link route is automatically added, so additional routing configuration is not necessary.
 
 ## Nodes
 
