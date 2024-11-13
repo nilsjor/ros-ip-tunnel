@@ -17,18 +17,27 @@ set(dependencies
 )
 
 # Add executables
-add_executable(test_tun src/test_tun.cpp)
-add_executable(test_tun_udp src/test_tun_udp.cpp)
+add_executable(test_tun_transmit src/test_tun_transmit.cpp)
+add_executable(test_tun_receive src/test_tun_receive.cpp)
+add_executable(test_tun_receive_headers src/test_tun_receive_headers.cpp)
 add_executable(test_multiarray src/test_multiarray.cpp)
 
 # Add dependencies
 ament_target_dependencies(test_multiarray ${dependencies})
 
-# Install executables
+# Install C++ executables
 install(TARGETS
-  test_tun
-  test_tun_udp
+  test_tun_transmit
+  test_tun_receive
+  test_tun_receive_headers
   test_multiarray
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install Python scripts with exec permission
+install(PROGRAMS
+  script/test_udp_transmit
+  script/test_udp_receive
   DESTINATION lib/${PROJECT_NAME}
 )
 

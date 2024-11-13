@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+
+import socket
+
+dest_ip = "10.0.0.1"
+dest_port = 12345
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+message = b"Hello from Python over IP!"
+sock.sendto(message, (dest_ip, dest_port))
