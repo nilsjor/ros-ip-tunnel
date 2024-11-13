@@ -35,7 +35,7 @@ int createTunInterface(const std::string& tunName) {
 void printIpHeader(const struct iphdr* iph) {
     int header_length = iph->ihl * 4;  // IHL field gives length in 4-byte words
     int option_bytes = header_length - 20;
-
+    
     std::cout << "IP Header:" << std::endl;
     std::cout << " - Version: " << (int)iph->version << std::endl;
     std::cout << " - Header Length: " << header_length << " bytes (" << option_bytes << " option bytes)" << std::endl;

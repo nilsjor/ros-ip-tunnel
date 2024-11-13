@@ -10,12 +10,23 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
+# Set dependencies
+set(dependencies
+    rclcpp
+    std_msgs
+)
+
 # Add executables
-add_executable(tun_test src/tun_test.cpp)
+add_executable(test_tun_udp src/test_tun_udp.cpp)
+add_executable(test_multiarray src/test_multiarray.cpp)
+
+# Add dependencies
+ament_target_dependencies(test_multiarray ${dependencies})
 
 # Install executables
 install(TARGETS
-  tun_test
+  test_tun_udp
+  test_multiarray
   DESTINATION lib/${PROJECT_NAME}
 )
 
