@@ -17,31 +17,49 @@
 
 class IPTunnelNode : public rclcpp::Node {
 public:
-    IPTunnelNode(const std::string &pub_topic, const std::string &sub_topic, const std::string &tun_name)
+    IPTunnelNode()
         : Node("ip_tunnel_node"), running_(true) {
+        // Ensure running_ is set to false during shutdown
+        rclcpp::on_shutdown([this]() {
+            running_ = false;
+        });
+
+        // Declare parameters with default values
+        this->declare_parameter<std::string>("pub_topic");
+        this->declare_parameter<std::string>("sub_topic");
+        this->declare_parameter<std::string>("tun_device", "tun0");
+
+        // Check if required parameters are set
+        this->get_parameter("tun_device", tun_device_);
+        if (!this->get_parameter("pub_topic", pub_topic_) ||
+            !this->get_parameter("sub_topic", sub_topic_)) {
+            RCLCPP_ERROR(this->get_logger(), "Required parameters not set. Please provide names for pub_topic and sub_topic.");
+            rclcpp::shutdown();
+            return;
+        }
 
         // Open TUN interface
-        tun_fd_ = createTunInterface(tun_name);
+        tun_fd_ = createTunInterface(tun_device_);
         if (tun_fd_ < 0) {
             RCLCPP_ERROR(this->get_logger(), "Failed to open TUN interface");
             rclcpp::shutdown();
             return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "Opened TUN interface %s", tun_name.c_str());
-        RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s", pub_topic.c_str());
-        RCLCPP_INFO(this->get_logger(), "Subscribing to topic: %s", sub_topic.c_str());
+        RCLCPP_INFO(this->get_logger(), "Opened TUN interface %s", tun_device_.c_str());
+        RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s", pub_topic_.c_str());
+        RCLCPP_INFO(this->get_logger(), "Subscribing to topic: %s", sub_topic_.c_str());
 
         // Determine logger level (there has to be a better way...)
         debug_ = rcutils_logging_get_logger_effective_level(this->get_logger().get_name()) 
             <= static_cast<RCUTILS_LOG_SEVERITY>(rclcpp::Logger::Level::Debug);
 
         // Publisher for outgoing IP packets
-        publisher_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(pub_topic, 10);
+        publisher_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(pub_topic_, 10);
 
         // Subscription for incoming IP packets
         subscription_ = this->create_subscription<std_msgs::msg::UInt8MultiArray>(
-            sub_topic, 10,
+            sub_topic_, 10,
             [this](const std_msgs::msg::UInt8MultiArray::SharedPtr msg) {
                 // Write received data directly to TUN interface
                 if (write(tun_fd_, msg->data.data(), msg->data.size()) < 0) {
@@ -64,6 +82,9 @@ public:
     }
 
 private:
+    std::string pub_topic_;
+    std::string sub_topic_;
+    std::string tun_device_;
     bool debug_;
     int tun_fd_;
     std::thread tun_thread_;
@@ -190,16 +211,7 @@ private:
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
 
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <pub_topic> <sub_topic> [tun_device]" << std::endl;
-        return 1;
-    }
-
-    std::string pub_topic = argv[1];
-    std::string sub_topic = argv[2];
-    std::string tun_name = (argc > 3) ? argv[3] : "tun0";
-
-    auto node = std::make_shared<IPTunnelNode>(pub_topic, sub_topic, tun_name);
+    auto node = std::make_shared<IPTunnelNode>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
