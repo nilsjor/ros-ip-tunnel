@@ -11,6 +11,10 @@
 #include <iostream>
 #include <cstring>
 
+#include <netinet/ip.h>       // IP header structure
+#include <netinet/udp.h>      // UDP header structure
+#include <arpa/inet.h>        // Provides inet_ntop for IP address formatting
+
 class IPTunnelNode : public rclcpp::Node {
 public:
     IPTunnelNode(const std::string &pub_topic, const std::string &sub_topic, const std::string &tun_name)
@@ -115,7 +119,55 @@ private:
 
             RCLCPP_INFO(this->get_logger(), "Publishing packet from TUN interface, %d bytes", nread);
             publisher_->publish(message);
+
+            // Print IP header details
+            struct iphdr* iph = (struct iphdr*)buffer;
+            printIpHeader(iph);
+            if (iph->protocol == IPPROTO_UDP) {
+                struct udphdr* udph = (struct udphdr*)(buffer + iph->ihl * 4);
+                printUdpHeader(udph);
+            }
         }
+    }
+
+    // Function to print the IP header details
+    void printIpHeader(const struct iphdr* iph) {
+        std::ostringstream oss;
+        int header_length = iph->ihl * 4;  // IHL field gives length in 4-byte words
+        int option_bytes = header_length - 20;
+
+        oss << "IP Header:\n";
+        oss << " - Version: " << (int)iph->version << "\n";
+        oss << " - Header Length: " << header_length << " bytes (" << option_bytes << " option bytes)\n";
+        oss << " - Type of Service: " << (int)iph->tos << "\n";
+        oss << " - Total Length: " << ntohs(iph->tot_len) << " bytes\n";
+        oss << " - Identification: " << ntohs(iph->id) << "\n";
+        oss << " - Flags: " << ((ntohs(iph->frag_off) & 0xE000) >> 13) << "\n";
+        oss << " - Fragment Offset: " << (ntohs(iph->frag_off) & 0x1FFF) << "\n";
+        oss << " - Time to Live (TTL): " << (int)iph->ttl << "\n";
+        oss << " - Protocol: " << (int)iph->protocol << "\n";
+        oss << " - Header Checksum: " << ntohs(iph->check) << "\n";
+
+        char src_ip[INET_ADDRSTRLEN];
+        char dst_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(iph->saddr), src_ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(iph->daddr), dst_ip, INET_ADDRSTRLEN);
+        oss << " - Source IP: " << src_ip << "\n";
+        oss << " - Destination IP: " << dst_ip;
+
+        RCLCPP_DEBUG(this->get_logger(), "%s", oss.str().c_str());
+    }
+
+    // Function to print the UDP header details
+    void printUdpHeader(const struct udphdr* udph) {
+        std::ostringstream oss;
+        oss << "UDP Header:\n";
+        oss << " - Source Port: " << ntohs(udph->source) << "\n";
+        oss << " - Destination Port: " << ntohs(udph->dest) << "\n";
+        oss << " - Length: " << ntohs(udph->len) << " bytes\n";
+        oss << " - Checksum: " << ntohs(udph->check);
+
+        RCLCPP_DEBUG(this->get_logger(), "%s", oss.str().c_str());
     }
 };
 
