@@ -61,35 +61,24 @@ This configuration assigns each host a unique IP address on the `10.0.0.0/24` su
 
 This is the core node in the `ip_tunnel` package. It handles both publishing and subscribing to IP-encapsulated messages, and it can act as either the "server" or "client" for the IP tunnel, based on topic arguments provided at runtime.
 
+```
+ros2 run ip_tunnel ip_tunnel_node <pub_topic> <sub_topic> [tun_device]
+```
+
 **Parameters**:
 
 - `pub_topic`: The ROS 2 topic to publish encapsulated IP packets.
 - `sub_topic`: The ROS 2 topic to subscribe and listen for encapsulated IP packets.
-
-**Example Usage**:
-
-#### Server Node (Uplink)
-
-To start a node instance that sends uplink packets on `ip_uplink` and receives downlink on `ip_downlink`:
-```
-ros2 run ip_tunnel ip_tunnel_node ip_uplink ip_downlink
-```
-
-#### Client Node (Downlink)
-
-To start a complementary instance that sends downlink packets on `ip_downlink` and receives uplink on `ip_uplink`:
-```
-ros2 run ip_tunnel ip_tunnel_node ip_downlink ip_uplink
-```
+- `tun_device`: The name of the TUN interface. Default: `tun0`.
 
 ## Example Workflow
 
-1. **Run a Server Node** on one host:
+1. **Run a Server Node** on one host, that sends uplink packets on `ip_uplink` and receives downlink on `ip_downlink`:
     ```
     ros2 run ip_tunnel ip_tunnel_node ip_uplink ip_downlink
     ```
     
-2. **Run a Client Node** on the other host:
+2. **Run a Client Node** on the other host, that sends downlink packets on `ip_downlink` and receives uplink on `ip_uplink`:
     ```
     ros2 run ip_tunnel ip_tunnel_node ip_downlink ip_uplink
     ```

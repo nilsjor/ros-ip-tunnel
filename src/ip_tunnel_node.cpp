@@ -123,14 +123,14 @@ private:
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
 
-    if (argc < 4) {
-        std::cerr << "Error: You must specify pub_topic, sub_topic, and TUN device name." << std::endl;
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <pub_topic> <sub_topic> [tun_device]" << std::endl;
         return 1;
     }
 
     std::string pub_topic = argv[1];
     std::string sub_topic = argv[2];
-    std::string tun_name = argv[3];
+    std::string tun_name = (argc > 3) ? argv[3] : "tun0";
 
     auto node = std::make_shared<IPTunnelNode>(pub_topic, sub_topic, tun_name);
     rclcpp::spin(node);
