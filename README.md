@@ -2,33 +2,34 @@
 
 ## Overview
 
-`ip_tunnel` is a ROS 2 package designed to tunnel IP packets over DDS middleware, enabling IP-based communication between distributed systems within a ROS 2 network. This can be particularly useful in environments where DDS is the primary communication layer, but IP connectivity is required between nodes on separate hosts.
+`ip_tunnel` is a ROS 2 package that enables IP packet tunneling over DDS middleware, allowing users to leverage familiar IP-based tools (e.g., `ping`, `iperf`) to test and benchmark DDS Quality of Service (QoS) settings. By encapsulating IP packets as ROS 2 messages, `ip_tunnel` allows seamless IP communication between distributed systems without the need for VPNs or dedicated networking hardware.
 
-This package provides two main nodes that encapsulate IP packets in ROS 2 messages and transport them across a DDS network, effectively creating an IP tunnel over DDS.
+This package facilitates IP packet exchange across a DDS-based network by encapsulating IP packets in ROS 2 messages, which are then published and subscribed over DDS. This setup provides a flexible testing environment where users can evaluate DDS QoS profiles, monitor latency, reliability, and data persistence, and validate network behavior under various QoS configurations.
 
-## Theory
+### Key Benefits
 
-Tunneling IP over DDS involves encapsulating IP packets into ROS 2 messages, which are then published and subscribed over DDS using the ROS 2 framework. This setup enables IP packet exchange between hosts using DDS as the underlying transport. Key benefits include:
-
-- **Seamless IP Communication**: Extending IP-level communication across a DDS-based network.
-- **Reliable and Flexible Transport**: Leveraging ROS 2 and DDS Quality of Service (QoS) settings to control reliability, latency, and data persistence.
-- **Minimal Overhead**: Efficiently reusing existing DDS infrastructure for IP tunneling without needing a separate VPN or dedicated IP link.
-
-In `ip_tunnel`, IP packets are captured and encapsulated as ROS 2 messages, sent across the DDS network, and then decapsulated at the receiving host.
+- **Flexible IP Communication Over DDS**: Extend IP-level communication across a DDS-based network, enabling easy IP-based testing and benchmarking.
+- **Configurable QoS Settings**: Use ROS 2 and DDS QoS profiles to control reliability, latency, and data persistence, tailoring performance to suit specific needs.
+- **Efficient Infrastructure Reuse**: Avoid additional tools and configurations by reusing existing DDS infrastructure for IP tunneling, eliminating the need for a VPN or dedicated link.
 
 ## Installation
 
-1. Clone this repository into your ROS 2 workspace:
+1. Navigate to your ROS 2 workspace:
     ```
-    cd ~/ros2_ws/src && git clone https://github.com/nilsjor/ros-ip-tunnel.git ip_tunnel
-    ```
-
-2. Build the package:
-    ```
-    cd ~/ros2_ws && colcon build --packages-select ip_tunnel
+    cd ~/ros2_ws/src
     ```
 
-3. Source your workspace:
+2. Clone this repository into your workspace:
+    ```
+    git clone https://github.com/nilsjor/ros-ip-tunnel.git ip_tunnel
+    ```
+
+3. Build the package:
+    ```
+    colcon build --packages-select ip_tunnel
+    ```
+
+4. Source your workspace:
     ```
     source install/setup.bash
     ```
@@ -55,33 +56,38 @@ On each host, create and configure a unique TUN interface with an IP address on 
 
 This configuration assigns each host a unique IP address on the `10.0.0.0/24` subnet. The on-link route is automatically added, so additional routing configuration is not necessary.
 
+Optionally, it may useful to apply firewall rules to the `tun0` interface on each host.
+For example, to drop all packets sent the Husarnet daemon (port 5582):
+```
+sudo iptables -A OUTPUT -o tun0 -p udp --sport 5582 -j DROP
+```
+
 ## Nodes
 
 ### `ip_tunnel_node`
 
-This is the core node in the `ip_tunnel` package. It handles both publishing and subscribing to IP-encapsulated messages, and it can act as either the "server" or "client" for the IP tunnel, based on topic arguments provided at runtime.
+This is the core node in the `ip_tunnel` package. It handles both publishing and subscribing to IP-encapsulated messages, and it can act as either the "uplink" or "downlink" for the IP tunnel, based on topic arguments provided at runtime.
 
 ```
-ros2 run ip_tunnel ip_tunnel_node <pub_topic> <sub_topic> [tun_device]
+ros2 run ip_tunnel ip_tunnel_node --ros-args -p <sub_topic> -p <pub_topic> -p [tun_device]
 ```
 
 **Parameters**:
 
 - `pub_topic`: The ROS 2 topic to publish encapsulated IP packets.
 - `sub_topic`: The ROS 2 topic to subscribe and listen for encapsulated IP packets.
-- `tun_device`: The name of the TUN interface. Default: `tun0`.
+- `tun_device`: The name of the TUN interface. Optional, default: `tun0`.
 
 ## Example Workflow
 
 1. **Run a Server Node** on one host, that sends uplink packets on `ip_uplink` and receives downlink on `ip_downlink`:
     ```
-    ros2 run ip_tunnel ip_tunnel_node ip_uplink ip_downlink
+    ros2 run ip_tunnel ip_tunnel_node --ros-args -p pub_topic:=ip_uplink -p sub_topic:=ip_downlink
     ```
     
 2. **Run a Client Node** on the other host, that sends downlink packets on `ip_downlink` and receives uplink on `ip_uplink`:
     ```
-    ros2 run ip_tunnel ip_tunnel_node ip_downlink ip_uplink
+    ros2 run ip_tunnel ip_tunnel_node --ros-args -p pub_topic:=ip_downlink -p sub_topic:=ip_uplink
     ```
     
-
 With these two nodes running, IP packets are tunneled across the ROS 2 network using DDS as the transport layer.
