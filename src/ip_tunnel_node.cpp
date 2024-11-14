@@ -32,6 +32,10 @@ public:
         RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s", pub_topic.c_str());
         RCLCPP_INFO(this->get_logger(), "Subscribing to topic: %s", sub_topic.c_str());
 
+        // Determine logger level (there has to be a better way...)
+        debug_ = rcutils_logging_get_logger_effective_level(this->get_logger().get_name()) 
+            <= static_cast<RCUTILS_LOG_SEVERITY>(rclcpp::Logger::Level::Debug);
+
         // Publisher for outgoing IP packets
         publisher_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(pub_topic, 10);
 
@@ -39,8 +43,6 @@ public:
         subscription_ = this->create_subscription<std_msgs::msg::UInt8MultiArray>(
             sub_topic, 10,
             [this](const std_msgs::msg::UInt8MultiArray::SharedPtr msg) {
-                RCLCPP_INFO(this->get_logger(), "Writing received data to TUN interface");
-
                 // Write received data directly to TUN interface
                 if (write(tun_fd_, msg->data.data(), msg->data.size()) < 0) {
                     RCLCPP_ERROR(this->get_logger(), "Failed to write to TUN interface");
@@ -62,6 +64,7 @@ public:
     }
 
 private:
+    bool debug_;
     int tun_fd_;
     std::thread tun_thread_;
     std::atomic<bool> running_;
@@ -116,16 +119,17 @@ private:
             auto message = std_msgs::msg::UInt8MultiArray();
             message.data.resize(nread);
             std::memcpy(message.data.data(), buffer, nread);
-
-            RCLCPP_INFO(this->get_logger(), "Publishing packet from TUN interface, %d bytes", nread);
             publisher_->publish(message);
 
             // Print IP header details
-            struct iphdr* iph = (struct iphdr*)buffer;
-            printIpHeader(iph);
-            if (iph->protocol == IPPROTO_UDP) {
-                struct udphdr* udph = (struct udphdr*)(buffer + iph->ihl * 4);
-                printUdpHeader(udph);
+            if (debug_) {
+                RCLCPP_INFO(this->get_logger(), "Publishing packet from TUN interface, %d bytes", nread);
+                struct iphdr* iph = (struct iphdr*)buffer;
+                printIpHeader(iph);
+                if (iph->protocol == IPPROTO_UDP) {
+                    struct udphdr* udph = (struct udphdr*)(buffer + iph->ihl * 4);
+                    printUdpHeader(udph);
+                }
             }
         }
     }
@@ -145,7 +149,7 @@ private:
         oss << " - Flags: " << ((ntohs(iph->frag_off) & 0xE000) >> 13) << "\n";
         oss << " - Fragment Offset: " << (ntohs(iph->frag_off) & 0x1FFF) << "\n";
         oss << " - Time to Live (TTL): " << (int)iph->ttl << "\n";
-        oss << " - Protocol: " << (int)iph->protocol << "\n";
+        oss << " - Protocol: " << (int)iph->protocol << getProtocolName(iph->protocol) << "\n";
         oss << " - Header Checksum: " << ntohs(iph->check) << "\n";
 
         char src_ip[INET_ADDRSTRLEN];
@@ -156,6 +160,17 @@ private:
         oss << " - Destination IP: " << dst_ip;
 
         RCLCPP_DEBUG(this->get_logger(), "%s", oss.str().c_str());
+    }
+
+    std::string getProtocolName(int protocol) {
+        switch (protocol) {
+            case 1:   return " (ICMP)";
+            case 6:   return " (TCP)";
+            case 17:  return " (UDP)";
+            case 41:  return " (IPv6)";
+            case 58:  return " (ICMPv6)";
+            default:  return "";
+        }
     }
 
     // Function to print the UDP header details
