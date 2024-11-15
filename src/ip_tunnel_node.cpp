@@ -19,17 +19,21 @@ class IPTunnelNode : public rclcpp::Node {
 public:
     IPTunnelNode()
         : Node("ip_tunnel_node"), running_(true) {
-        // Ensure running_ is set to false during shutdown
         rclcpp::on_shutdown([this]() {
             running_ = false;
         });
 
-        // Declare parameters with default values
+        // Declare parameters
         this->declare_parameter<std::string>("pub_topic");
         this->declare_parameter<std::string>("sub_topic");
         this->declare_parameter<std::string>("tun_device", "tun0");
 
-        // Check if required parameters are set
+        // QoS parameters
+        this->declare_parameter<std::string>("reliability", "reliable");
+        this->declare_parameter<std::string>("durability", "volatile");
+        this->declare_parameter<int>("history_depth", 10);
+
+        // Get parameters
         this->get_parameter("tun_device", tun_device_);
         if (!this->get_parameter("pub_topic", pub_topic_) ||
             !this->get_parameter("sub_topic", sub_topic_)) {
@@ -47,19 +51,22 @@ public:
         }
 
         RCLCPP_INFO(this->get_logger(), "Opened TUN interface %s", tun_device_.c_str());
-        RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s", pub_topic_.c_str());
-        RCLCPP_INFO(this->get_logger(), "Subscribing to topic: %s", sub_topic_.c_str());
 
         // Determine logger level (there has to be a better way...)
         debug_ = rcutils_logging_get_logger_effective_level(this->get_logger().get_name()) 
             <= static_cast<RCUTILS_LOG_SEVERITY>(rclcpp::Logger::Level::Debug);
 
-        // Publisher for outgoing IP packets
-        publisher_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(pub_topic_, 10);
+        // Configure QoS
+        auto qos = configureQoS();
 
-        // Subscription for incoming IP packets
+        // Publisher with configurable QoS
+        RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s", pub_topic_.c_str());
+        publisher_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(pub_topic_, qos);
+
+        // Subscription with configurable QoS
+        RCLCPP_INFO(this->get_logger(), "Subscribing to topic: %s", sub_topic_.c_str());
         subscription_ = this->create_subscription<std_msgs::msg::UInt8MultiArray>(
-            sub_topic_, 10,
+            sub_topic_, qos,
             [this](const std_msgs::msg::UInt8MultiArray::SharedPtr msg) {
                 // Write received data directly to TUN interface
                 if (write(tun_fd_, msg->data.data(), msg->data.size()) < 0) {
@@ -91,6 +98,43 @@ private:
     std::atomic<bool> running_;
     rclcpp::Publisher<std_msgs::msg::UInt8MultiArray>::SharedPtr publisher_;
     rclcpp::Subscription<std_msgs::msg::UInt8MultiArray>::SharedPtr subscription_;
+
+    rclcpp::QoS configureQoS() {
+        std::string reliability, durability;
+        int history_depth;
+
+        this->get_parameter("reliability", reliability);
+        this->get_parameter("durability", durability);
+        this->get_parameter("history_depth", history_depth);
+
+        rclcpp::QoS qos(history_depth);
+
+        if (reliability == "reliable") {
+            qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        } else if (reliability == "best_effort") {
+            qos.reliability(rclcpp::ReliabilityPolicy::BestEffort);
+        } else {
+            RCLCPP_WARN(this->get_logger(), "Unknown reliability, defaulting to Reliable");
+            reliability = "reliable";
+            qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        }
+
+        if (durability == "transient_local") {
+            qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+        } else if (durability == "volatile") {
+            qos.durability(rclcpp::DurabilityPolicy::Volatile);
+        } else {
+            RCLCPP_WARN(this->get_logger(), "Unknown durability, defaulting to Volatile");
+            durability = "volatile";
+            qos.durability(rclcpp::DurabilityPolicy::Volatile);
+        }
+
+        RCLCPP_INFO(this->get_logger(), 
+            "QoS Settings: '%s', '%s', history_depth=%d", 
+            reliability.c_str(), durability.c_str(), history_depth);
+
+        return qos;
+    }
 
     int createTunInterface(const std::string& tun_name) {
         struct ifreq ifr;

@@ -42,43 +42,64 @@ On each host, create and configure a unique TUN interface with an IP address on 
 
 1. **Host 1**:
     ```
-    sudo ip tuntap add dev tun0 mode tun; \
-    sudo ip addr add 10.0.0.1/24 dev tun0; \
+    sudo ip tuntap add dev tun0 mode tun && \
+    sudo ip addr add 10.0.0.1/24 dev tun0 && \
     sudo ip link set dev tun0 up
     ```
 
 2. **Host 2**:
     ```
-    sudo ip tuntap add dev tun0 mode tun; \
-    sudo ip addr add 10.0.0.2/24 dev tun0; \
+    sudo ip tuntap add dev tun0 mode tun && \
+    sudo ip addr add 10.0.0.2/24 dev tun0 && \
     sudo ip link set dev tun0 up
     ```
 
 This configuration assigns each host a unique IP address on the `10.0.0.0/24` subnet. The on-link route is automatically added, so additional routing configuration is not necessary.
 
-Optionally, it may useful to apply firewall rules to the `tun0` interface on each host.
-For example, to drop all packets sent the Husarnet daemon (port 5582):
+Optionally, you may apply firewall rules to the `tun0` interface on each host. For example, to drop all packets sent by the Husarnet daemon (port 5582):
 ```
 sudo iptables -A OUTPUT -o tun0 -p udp --sport 5582 -j DROP
 ```
 
-## Nodes
+## Node: `ip_tunnel_node`
 
-### `ip_tunnel_node`
+The `ip_tunnel_node` is the core of the `ip_tunnel` package. It enables IP packet encapsulation and transport over DDS middleware by acting as either the "uplink" or "downlink" endpoint of the tunnel. The node is highly configurable, allowing users to adjust ROS 2 topics and DDS Quality of Service (QoS) settings to suit their application needs.
 
-This is the core node in the `ip_tunnel` package. It handles both publishing and subscribing to IP-encapsulated messages, and it can act as either the "uplink" or "downlink" for the IP tunnel, based on topic arguments provided at runtime.
+### Usage
 
 ```
-ros2 run ip_tunnel ip_tunnel_node --ros-args -p <sub_topic> -p <pub_topic> -p [tun_device]
+ros2 run ip_tunnel ip_tunnel_node --ros-args \
+   -p pub_topic:=<pub_topic> \
+   -p sub_topic:=<sub_topic> \
+   [-p tun_device:=<tun_device>] \
+   [-p reliability:=<reliability>] \
+   [-p durability:=<durability>] \
+   [-p history_depth:=<history_depth>]
 ```
 
-**Parameters**:
+### Parameters
 
-- `pub_topic`: The ROS 2 topic to publish encapsulated IP packets.
-- `sub_topic`: The ROS 2 topic to subscribe and listen for encapsulated IP packets.
-- `tun_device`: The name of the TUN interface. Optional, default: `tun0`.
+#### Required Parameters
+
+- **`pub_topic`**: The ROS 2 topic to publish encapsulated IP packets.
+- **`sub_topic`**: The ROS 2 topic to subscribe and listen for encapsulated IP packets.
+
+#### Optional Parameters
+
+- **`tun_device`**: Name of the TUN interface. Default: `tun0`.
+- **`reliability`**: Reliability policy for DDS QoS. Options:
+    - `reliable` _(default)_: Ensures packet delivery but may introduce latency.
+    - `best_effort`: Favors low latency but may drop packets.
+- **`durability`**: Durability policy for DDS QoS. Options:
+    - `volatile` _(default)_: Only keeps data for active subscribers.
+    - `transient_local`: Retains data for new subscribers.
+- **`history_depth`**: Number of messages to store in the DDS queue. Default: `10`.
+
+For more details about QoS settings, refer to the [ROS 2 QoS Documentation](https://docs.ros.org/en/humble/Concepts/Intermediate/About-Quality-of-Service-Settings.html).
 
 ## Example Workflow
+
+### Example 1: Default QoS
 
 1. **Run a Server Node** on one host, that sends uplink packets on `ip_uplink` and receives downlink on `ip_downlink`:
     ```
@@ -89,5 +110,28 @@ ros2 run ip_tunnel ip_tunnel_node --ros-args -p <sub_topic> -p <pub_topic> -p [t
     ```
     ros2 run ip_tunnel ip_tunnel_node --ros-args -p pub_topic:=ip_downlink -p sub_topic:=ip_uplink
     ```
+
+### Example 2: Custom QoS
+
+To use custom QoS settings, specify the parameters:
+
+1. **Server Node**:
+    ```
+    ros2 run ip_tunnel ip_tunnel_node --ros-args \
+       -p pub_topic:=ip_uplink \
+       -p sub_topic:=ip_downlink \
+       -p reliability:=best_effort \
+       -p durability:=volatile \
+       -p history_depth:=5
+    ```
     
-With these two nodes running, IP packets are tunneled across the ROS 2 network using DDS as the transport layer.
+2. **Client Node**:
+    ```
+    ros2 run ip_tunnel ip_tunnel_node --ros-args \
+       -p pub_topic:=ip_downlink \
+       -p sub_topic:=ip_uplink \
+       -p reliability:=best_effort \
+       -p durability:=volatile \
+       -p history_depth:=5
+    ```
+
