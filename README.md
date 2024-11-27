@@ -74,7 +74,9 @@ ros2 run ip_tunnel ip_tunnel_node --ros-args \
    [-p tun_device:=<tun_device>] \
    [-p reliability:=<reliability>] \
    [-p durability:=<durability>] \
-   [-p history_depth:=<history_depth>]
+   [-p history_policy:=<history_policy>] \
+   [-p history_depth:=<history_depth>] \
+   [-p lifespan_ms:=<lifespan_ms>]
 ```
 
 ### Parameters
@@ -82,18 +84,30 @@ ros2 run ip_tunnel ip_tunnel_node --ros-args \
 #### Required Parameters
 
 - **`pub_topic`**: The ROS 2 topic to publish encapsulated IP packets.
+
 - **`sub_topic`**: The ROS 2 topic to subscribe and listen for encapsulated IP packets.
 
 #### Optional Parameters
 
 - **`tun_device`**: Name of the TUN interface. Default: `tun0`.
+
+#### QoS Configuration Parameters
+
 - **`reliability`**: Reliability policy for DDS QoS. Options:
     - `reliable` _(default)_: Ensures packet delivery but may introduce latency.
     - `best_effort`: Favors low latency but may drop packets.
+
 - **`durability`**: Durability policy for DDS QoS. Options:
     - `volatile` _(default)_: Only keeps data for active subscribers.
     - `transient_local`: Retains data for new subscribers.
-- **`history_depth`**: Number of messages to store in the DDS queue. Default: `10`.
+
+- **`history_policy`**: History policy for DDS QoS. Options:
+    - `keep_last` _(default)_: Stores up to `history_depth` messages.
+    - `keep_all`: Stores all messages (subject to middleware resource limits).
+
+- **`history_depth`**: Number of messages to store in the DDS queue. Ignored if policy is `keep_all`. Default: `10`.
+
+- **`lifespan_ms`**: Maximum time (in milliseconds) a message is valid before being dropped. Default: unspecified.
 
 For more details about QoS settings, refer to the [ROS 2 QoS Documentation](https://docs.ros.org/en/humble/Concepts/Intermediate/About-Quality-of-Service-Settings.html).
 

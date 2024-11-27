@@ -28,13 +28,7 @@ public:
         this->declare_parameter<std::string>("sub_topic");
         this->declare_parameter<std::string>("tun_device", "tun0");
 
-        // QoS parameters
-        this->declare_parameter<std::string>("reliability", "reliable");
-        this->declare_parameter<std::string>("durability", "volatile");
-        this->declare_parameter<int>("history_depth", 10);
-
-        // Get parameters
-        this->get_parameter("tun_device", tun_device_);
+        // Check required parameters
         if (!this->get_parameter("pub_topic", pub_topic_) ||
             !this->get_parameter("sub_topic", sub_topic_)) {
             RCLCPP_ERROR(this->get_logger(), "Required parameters not set. Please provide names for pub_topic and sub_topic.");
@@ -43,6 +37,7 @@ public:
         }
 
         // Open TUN interface
+        this->get_parameter("tun_device", tun_device_);
         tun_fd_ = createTunInterface(tun_device_);
         if (tun_fd_ < 0) {
             RCLCPP_ERROR(this->get_logger(), "Failed to open TUN interface");
@@ -100,14 +95,30 @@ private:
     rclcpp::Subscription<std_msgs::msg::UInt8MultiArray>::SharedPtr subscription_;
 
     rclcpp::QoS configureQoS() {
-        std::string reliability, durability;
-        int history_depth;
+        std::string reliability, durability, history_policy;
+        int history_depth, lifespan_ms;
+
+        // Declare and get QoS parameters
+        this->declare_parameter<std::string>("reliability", "reliable");
+        this->declare_parameter<std::string>("durability", "volatile");
+        this->declare_parameter<std::string>("history_policy", "keep_last");
+        this->declare_parameter<int>("history_depth", 10);
+        this->declare_parameter<int>("lifespan_ms",0);
 
         this->get_parameter("reliability", reliability);
         this->get_parameter("durability", durability);
+        this->get_parameter("history_policy", history_policy);
         this->get_parameter("history_depth", history_depth);
+        this->get_parameter("lifespan_ms", lifespan_ms);
 
         rclcpp::QoS qos(history_depth);
+
+        if (history_policy == "keep_all") {
+            qos.keep_all();
+        } else if (history_policy != "keep_last") {
+            RCLCPP_WARN(this->get_logger(), "Unknown reliability, defaulting to Keep Last");
+            history_policy = "keep_last"; 
+        }
 
         if (reliability == "reliable") {
             qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
@@ -129,9 +140,16 @@ private:
             qos.durability(rclcpp::DurabilityPolicy::Volatile);
         }
 
-        RCLCPP_INFO(this->get_logger(), 
-            "QoS Settings: '%s', '%s', history_depth=%d", 
-            reliability.c_str(), durability.c_str(), history_depth);
+        if (lifespan_ms > 0) {
+            qos.lifespan(rclcpp::Duration::from_nanoseconds(lifespan_ms * 1e6));
+        }
+
+        RCLCPP_INFO(this->get_logger(),
+            "QoS Settings: Reliability=%s, Durability=%s, History Policy=%s, Lifespan=%s",
+            reliability.c_str(),
+            durability.c_str(),
+            history_policy.append((history_policy == "keep_last" ? (", Depth=" + std::to_string(history_depth)) : "")).c_str(),
+            lifespan_ms > 0 ? std::to_string(lifespan_ms).append(" ms").c_str() : "unspecified");
 
         return qos;
     }
