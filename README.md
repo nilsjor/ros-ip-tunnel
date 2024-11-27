@@ -135,3 +135,67 @@ To use custom QoS settings, specify the parameters:
        -p history_depth:=5
     ```
 
+## Application Example: NAT over DDS
+
+This example demonstrates how to set up Network Address Translation (NAT) over DDS using the `ip_tunnel` package. This setup allows one host to act as a NAT gateway, forwarding traffic through a DDS tunnel so that a client on the other side of the tunnel can reach external networks transparently.
+
+In this setup, the client cannot access the internet because its traffic is blocked by a firewall that only allows _direct_ communication with the server. This restriction prevents the client from reaching any external networks.
+
+By configuring the ip_tunnel package, the server can act as a NAT gateway, forwarding the client’s traffic through a DDS tunnel. As a result, the client can transparently access the internet as if it had a direct connection, with the server handling all outgoing and incoming traffic.
+
+### Server (NAT Gateway)
+
+The server acts as the NAT gateway, forwarding traffic from the client to external networks. The following steps enable IPv4 forwarding, configure NAT for tunneled traffic, and start the ROS 2 tunnel node.
+
+Enabling IPv4 forwarding (not persistant!)
+```
+sudo sysctl -w net.ipv4.ip_forward=1 > /dev/null && sudo sysctl -p
+```
+
+Enable NAT for tunneled traffic
+```
+sudo iptables -t nat \
+    -A POSTROUTING \
+    -o enp1s0 \
+    -s 10.0.0.0/24 \
+    -j MASQUERADE
+```
+
+Start the tunnel endpoint
+```
+ros2 run ip_tunnel ip_tunnel_node --ros-args -p pub_topic:=ip_uplink -p sub_topic:=ip_downlink
+```
+
+### Client (Tunneled Host)
+
+On the client side, the existing default route is updated to direct all outgoing traffic through the DDS tunnel, using the server as the gateway. This configuration allows the client to reach external networks by routing through the tunnel.
+
+Capture the `default` route information
+```
+default_route=$(ip route show | grep -oP '(?<=^default\s).*')
+```
+
+Delete the existing `default` route
+```
+sudo ip route del default $default_route
+```
+
+Add a route to the server's subnet via the old `default` route
+```
+sudo ip route add 10.2.58.0/24 $default_route
+```
+
+Set the new `default` route through the DDS tunnel
+```
+sudo ip route add default via 10.0.0.1 dev tun0
+```
+
+Start the tunnel endpoint
+```
+ros2 run ip_tunnel ip_tunnel_node --ros-args -p pub_topic:=ip_downlink -p sub_topic:=ip_uplink
+```
+
+If done correctly, the client should have internet access
+```
+ping yahoo.com
+```
