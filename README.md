@@ -111,6 +111,17 @@ ros2 run ip_tunnel ip_tunnel_node --ros-args \
 
 For more details about QoS settings, refer to the [ROS 2 QoS Documentation](https://docs.ros.org/en/humble/Concepts/Intermediate/About-Quality-of-Service-Settings.html).
 
+### Logging Levels
+
+The `ip_tunnel_node` supports different verbosity levels for logging. By default, minimal logs are displayed, but you can increase the verbosity using the `--log-level` argument. For example:
+```
+ros2 run ip_tunnel ip_tunnel_node --ros-args [...] --log-level DEBUG
+```
+
+When set to `DEBUG`, the node will print detailed information about each packet, including its IPv4 header details. This is useful for troubleshooting and understanding the packet flow.
+
+Learn more about ROS 2 command-line arguments and logging configuration [here](https://design.ros2.org/articles/ros_command_line_arguments.html).
+
 ## Example Workflow
 
 ### Example 1: Default QoS
